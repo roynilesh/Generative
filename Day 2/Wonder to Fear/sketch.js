@@ -23,7 +23,5 @@ function draw() {
 
   fill(251, 207, 255,50)
   triangle(500,150,width/2,height/2,500,350)
-  
-
 
 }
