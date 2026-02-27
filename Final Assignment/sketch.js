@@ -6,8 +6,9 @@ let hands = [];
 let activeMudras = []; // holds all currently detected mudras across both hands
 let animTime = 0;
 let animScale = 1;
-
-
+let animRotation = 0;
+let prevHandAngle = null;
+let rotationVelocity = 0;
 
 const MUDRA_THEMES = {
   gyan: { primary: [148, 0, 211], secondary: [75, 0, 130] },  // violet
@@ -24,6 +25,14 @@ function getHandDistance() {
   return dist(wrist0.x, wrist0.y, wrist1.x, wrist1.y);
 
 }
+
+function getHandAngle() {
+  if (hands.length < 2) return null;
+  let wrist0 = hands[0].keypoints[0];
+  let wrist1 = hands[1].keypoints[0];
+  return atan2(wrist1.y - wrist0.y, wrist1.x - wrist0.x);
+}
+
 function gotHands(results) {
   hands = results;
 }
@@ -320,15 +329,27 @@ function drawShuniSurya(t) {
 
 function draw() {
   image(video, 0, 0, width, height);
+
+  // ── Update rotation ──
+  let handAngle = getHandAngle();
+  if (handAngle !== null && prevHandAngle !== null) {
+    let angleDelta = handAngle - prevHandAngle;
+    if (angleDelta > PI)  angleDelta -= TWO_PI;
+    if (angleDelta < -PI) angleDelta += TWO_PI;
+    rotationVelocity = lerp(rotationVelocity, angleDelta, 0.2);
+  }
+  prevHandAngle = handAngle;
+  animRotation += rotationVelocity;
+  rotationVelocity *= 0.95; // gentle friction — lower = stops faster
+
+  // ── Update scale ──
   let handDist = getHandDistance();
+  if (handDist !== null) {
+    let targetScale = map(handDist, 50, 600, 0.3, 2.0, true);
+    animScale = lerp(animScale, targetScale, 0.1);
+  }
 
-if (handDist !== null) {
-  // Map hand distance (50px = close, 600px = far apart) to scale (0.3 to 2.0)
-  let targetScale = map(handDist, 50, 600, 0.3, 2.0, true);
-  animScale = lerp(animScale, targetScale, 0.1); // 0.1 = smooth easing
-}
-
-  // Collect all mudras detected this frame, one per hand
+  // ── Collect active mudras ──
   activeMudras = [];
   for (let hand of hands) {
     let detected = detectMudra(hand);
@@ -342,9 +363,10 @@ if (handDist !== null) {
   if (activeMudras.length > 0) {
     animTime += 0.03;
 
-// Apply scale transform around canvas centre
+    // ── Apply rotation + scale around canvas centre ──
     push();
     translate(width / 2, height / 2);
+    rotate(animRotation);
     scale(animScale);
     translate(-width / 2, -height / 2);
 
@@ -366,7 +388,7 @@ if (handDist !== null) {
 
     pop();
 
-    // Label
+    // Label drawn outside transform so it stays fixed at the bottom
     fill(255);
     noStroke();
     textSize(20);
@@ -377,6 +399,6 @@ if (handDist !== null) {
     text(label, width / 2, height - 20);
 
   } else {
-
+    animTime = 0;
   }
 }
